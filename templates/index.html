@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Electronics Study Buddy</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #eef2f7;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .chat-container {
+      width: 100%;
+      max-width: 720px;
+      height: 92vh;
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      background: #0f4c81;
+      color: #ffffff;
+      padding: 16px 20px;
+    }
+
+    .chat-header h1 { font-size: 1.15rem; }
+    .chat-header p { font-size: 0.85rem; opacity: 0.85; margin-top: 2px; }
+
+    .chat-box {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: #f7f9fc;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      line-height: 1.5;
+      font-size: 0.95rem;
+      word-wrap: break-word;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: #0f4c81;
+      color: #ffffff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.bot {
+      align-self: flex-start;
+      background: #ffffff;
+      color: #222222;
+      border: 1px solid #dde3ec;
+      border-bottom-left-radius: 4px;
+    }
+
+    .message code {
+      background: #eef2f7;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: Consolas, monospace;
+    }
+
+    .typing { color: #777777; font-style: italic; }
+
+    .input-area {
+      display: flex;
+      gap: 10px;
+      padding: 14px;
+      border-top: 1px solid #e3e8ef;
+      background: #ffffff;
+    }
+
+    .input-area input {
+      flex: 1;
+      padding: 12px 14px;
+      border: 1px solid #ccd4e0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    .input-area input:focus { border-color: #0f4c81; }
+
+    .input-area button {
+      padding: 0 22px;
+      background: #0f4c81;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    .input-area button:disabled { background: #8ea6bf; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="chat-header">
+      <h1>Electronics Study Buddy</h1>
+      <p>Ask me anything about electronics</p>
+    </div>
+
+    <div class="chat-box" id="chatBox">
+      <div class="message bot">
+        Hi! I'm your Electronics Study Buddy. Ask me about circuits, components,
+        analog or digital electronics, and more.
+      </div>
+    </div>
+
+    <div class="input-area">
+      <input type="text" id="userInput" placeholder="Type your electronics question..." autocomplete="off">
+      <button id="sendBtn">Send</button>
+    </div>
+  </div>
+
+  <script>
+    const chatBox = document.getElementById("chatBox");
+    const userInput = document.getElementById("userInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const history = [];
+
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function formatText(text) {
+      return escapeHtml(text)
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/`(.+?)`/g, "<code>$1</code>")
+        .replace(/\n/g, "<br>");
+    }
+
+    function addMessage(text, sender) {
+      const div = document.createElement("div");
+      div.className = "message " + sender;
+      if (sender === "bot") {
+        div.innerHTML = formatText(text);
+      } else {
+        div.textContent = text;
+      }
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+      return div;
+    }
+
+    async function sendMessage() {
+      const message = userInput.value.trim();
+      if (!message) return;
+
+      addMessage(message, "user");
+      userInput.value = "";
+      sendBtn.disabled = true;
+
+      const typing = addMessage("Thinking...", "bot");
+      typing.classList.add("typing");
+
+      try {
+        const response = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, history })
+        });
+        const data = await response.json();
+        typing.remove();
+
+        if (response.ok) {
+          addMessage(data.reply, "bot");
+          history.push({ role: "user", text: message });
+          history.push({ role: "model", text: data.reply });
+        } else {
+          addMessage(data.error || "Something went wrong.", "bot");
+        }
+      } catch (error) {
+        typing.remove();
+        addMessage("Could not reach the server. Please try again.", "bot");
+      }
+
+      sendBtn.disabled = false;
+      userInput.focus();
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+    userInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") sendMessage();
+    });
+  </script>
+</body>
+</html>
